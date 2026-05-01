@@ -1,0 +1,8 @@
+Goal Management only changes:
+1. Created clean backend Goal controller/routes.
+2. Added /api/goals routes and kept /api/progress/goals compatibility.
+3. Fixed mobile API URL into mobile/config/api.js.
+4. Created goal-only App.js so unrelated modules do not affect testing.
+5. Fixed ProgressDashboardScreen missing TouchableOpacity/navigation issue.
+6. Fixed RegisterScreen age validation bug.
+7. Kept Login/Register/Profile/Goal screens only.
