@@ -347,10 +347,10 @@ High-level overview including:
 ## Author
 
 **Student ID:** IT24103815  
-**Name:** [Your Name]  
+**Name:** [Fernando W.P.S.]  
 **Course:** WMT (Web and Mobile Technologies)  
 **Institution:** Sri Lanka Institute of Information Technology (SLIIT)  
-**Date:** May 2, 2026
+
 
 ---
 
