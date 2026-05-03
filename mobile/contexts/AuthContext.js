@@ -1,7 +1,8 @@
 import React, { createContext, useState, useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
-import { API_URL } from '../config/api';
+
+import { API_URL } from '../config';
 
 // Create Context
 export const AuthContext = createContext();
@@ -15,29 +16,18 @@ export const AuthProvider = ({ children }) => {
   useEffect(() => {
     const loadStoredUser = async () => {
       try {
-        // Support unified token key 'userToken'
-        const storedToken = await AsyncStorage.getItem('userToken');
-        // If older key exists, migrate it
-        if (!storedToken) {
-          const legacy = await AsyncStorage.getItem('token');
-          if (legacy) {
-            await AsyncStorage.setItem('userToken', legacy);
-            await AsyncStorage.removeItem('token');
-          }
-        }
-
-        const finalToken = storedToken || (await AsyncStorage.getItem('userToken'));
-
-        if (finalToken) {
-          setToken(finalToken);
-          axios.defaults.headers.common['Authorization'] = `Bearer ${finalToken}`;
+        const storedToken = await AsyncStorage.getItem('token');
+        
+        if (storedToken) {
+          setToken(storedToken);
+          axios.defaults.headers.common['Authorization'] = `Bearer ${storedToken}`;
 
           const res = await axios.get(`${API_URL}/auth/profile`);
           setUser(res.data.user);
         }
       } catch (error) {
-        console.log('Failed to load user from storage', error);
-        await AsyncStorage.removeItem('userToken');
+        console.log("Failed to load user from storage", error);
+        await AsyncStorage.removeItem('token');
       } finally {
         setLoading(false);
       }
@@ -51,7 +41,7 @@ export const AuthProvider = ({ children }) => {
     const res = await axios.post(`${API_URL}/auth/login`, { email, password });
     const { token: newToken, user: newUser } = res.data;
 
-    await AsyncStorage.setItem('userToken', newToken);
+    await AsyncStorage.setItem('token', newToken);
     setToken(newToken);
     setUser(newUser);
     axios.defaults.headers.common['Authorization'] = `Bearer ${newToken}`;
@@ -62,7 +52,7 @@ export const AuthProvider = ({ children }) => {
     const res = await axios.post(`${API_URL}/auth/register`, formData);
     const { token: newToken, user: newUser } = res.data;
 
-    await AsyncStorage.setItem('userToken', newToken);
+    await AsyncStorage.setItem('token', newToken);
     setToken(newToken);
     setUser(newUser);
     axios.defaults.headers.common['Authorization'] = `Bearer ${newToken}`;
@@ -70,7 +60,7 @@ export const AuthProvider = ({ children }) => {
 
   // Logout
   const logout = async () => {
-    await AsyncStorage.removeItem('userToken');
+    await AsyncStorage.removeItem('token');
     setToken(null);
     setUser(null);
     delete axios.defaults.headers.common['Authorization'];
@@ -78,10 +68,14 @@ export const AuthProvider = ({ children }) => {
 
   // Update Profile
   const updateProfile = async (newData) => {
-    const res = await axios.patch(`${API_URL}/auth/profile`, newData, {
-      headers: { 'Content-Type': 'multipart/form-data' }
-    });
+    const res = await axios.patch(`${API_URL}/auth/profile`, newData);
     setUser(res.data.user);
+  };
+
+  // Change Password
+  const changePassword = async (currentPassword, newPassword) => {
+    const res = await axios.patch(`${API_URL}/auth/change-password`, { currentPassword, newPassword });
+    return res.data;
   };
 
   return (
@@ -92,7 +86,8 @@ export const AuthProvider = ({ children }) => {
       login,
       register,
       logout,
-      updateProfile
+      updateProfile,
+      changePassword
     }}>
       {children}
     </AuthContext.Provider>
