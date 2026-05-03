@@ -1,170 +1,170 @@
-const Goal = require('../models/Goal');
 const User = require('../models/User');
+const Goal = require('../models/Goal');
+const ProgressRecord = require('../models/ProgressRecord');
 
-const enrichGoal = (goalDoc) => {
-  const goal = goalDoc.toObject ? goalDoc.toObject() : goalDoc;
-  const progressPercentage = goalDoc.calculateProgress ? goalDoc.calculateProgress() : 0;
-  const badge = goalDoc.getBadge ? goalDoc.getBadge() : 'Starter';
-  const motivationMessage = goalDoc.getMotivationMessage ? goalDoc.getMotivationMessage() : 'Keep going!';
-  return { ...goal, progressPercentage, badge, motivationMessage };
-};
+// Get Gamified Dashboard
+const getDashboard = async (req, res) => {
+    try {
+        let clientId = req.user._id;
+        if ((req.user.role === 'admin' || req.user.role === 'trainer') && req.params.clientId) {
+            clientId = req.params.clientId;
+        }
 
-const canAccessGoal = (user, goal) => {
-  if (user.role === 'admin' || user.role === 'trainer') return true;
-  return goal.client.toString() === user._id.toString();
-};
+        const user = await User.findById(clientId);
+        if (!user) return res.status(404).json({ success: false, message: 'User not found' });
 
-const createGoal = async (req, res) => {
-  try {
-    const { title, type, targetValue, startValue, currentValue, targetUnit, priority, description, deadline, client } = req.body;
+        const goals = await Goal.find({ client: clientId });
+        const progressRecords = await ProgressRecord.find({ client: clientId })
+            .sort({ date: -1 })
+            .limit(30);
 
-    if (!title || !type || targetValue === undefined || !targetUnit) {
-      return res.status(400).json({ success: false, message: 'Title, type, target value, and unit are required' });
+        res.json({
+            success: true,
+            user: {
+                name: user.name,
+                level: user.level,
+                xp: user.xp,
+                currentStreak: user.currentStreak,
+                longestStreak: user.longestStreak,
+                title: user.title,
+                badges: user.badges,
+                stats: user.stats,
+                bmi: user.bmi,
+                currentWeight: user.currentWeight
+            },
+            goals,
+            recentProgress: progressRecords
+        });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
     }
-
-    const selectedClient = (req.user.role === 'admin' || req.user.role === 'trainer') && client ? client : req.user._id;
-    const start = startValue !== undefined && startValue !== '' ? Number(startValue) : 0;
-
-    const goal = await Goal.create({
-      title,
-      type,
-      targetValue: Number(targetValue),
-      startValue: start,
-      currentValue: currentValue !== undefined && currentValue !== '' ? Number(currentValue) : start,
-      targetUnit,
-      priority: priority || 'medium',
-      description: description || '',
-      deadline: deadline || undefined,
-      client: selectedClient,
-      createdBy: req.user._id
-    });
-
-    res.status(201).json({ success: true, goal: enrichGoal(goal) });
-  } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
-  }
 };
 
-const getGoals = async (req, res) => {
-  try {
-    const query = req.user.role === 'client' ? { client: req.user._id } : {};
-    const goals = await Goal.find(query).sort({ createdAt: -1 });
-    res.json({ success: true, goals: goals.map(enrichGoal) });
-  } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
-  }
+// Create Goal
+const createGoal = async (req, res) => {
+    try {
+        const goal = await Goal.create({
+            ...req.body,
+            client: req.body.client || req.user._id,
+            createdBy: req.user._id
+        });
+        res.status(201).json({ success: true, goal });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
 };
 
-const getGoalById = async (req, res) => {
-  try {
-    const goal = await Goal.findById(req.params.id);
-    if (!goal) return res.status(404).json({ success: false, message: 'Goal not found' });
-    if (!canAccessGoal(req.user, goal)) return res.status(403).json({ success: false, message: 'Access denied' });
-
-    res.json({ success: true, goal: enrichGoal(goal) });
-  } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
-  }
+const getUserGoals = async (req, res) => {
+    try {
+        const goals = await Goal.find({ client: req.user._id });
+        res.json({ success: true, goals });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
 };
 
 const updateGoal = async (req, res) => {
-  try {
-    const goal = await Goal.findById(req.params.id);
-    if (!goal) return res.status(404).json({ success: false, message: 'Goal not found' });
-    if (!canAccessGoal(req.user, goal)) return res.status(403).json({ success: false, message: 'Access denied' });
+    try {
+        const goal = await Goal.findById(req.params.id);
+        if (!goal) return res.status(404).json({ success: false, message: 'Goal not found' });
 
-    const allowed = ['title', 'type', 'targetValue', 'startValue', 'currentValue', 'targetUnit', 'priority', 'status', 'description', 'deadline'];
-
-    allowed.forEach((field) => {
-      if (req.body[field] !== undefined) {
-        if (['targetValue', 'startValue', 'currentValue'].includes(field)) {
-          goal[field] = Number(req.body[field]);
-        } else {
-          goal[field] = req.body[field];
+        if (req.user.role === 'client' && goal.client.toString() !== req.user._id.toString()) {
+            return res.status(403).json({ success: false, message: 'Access denied' });
         }
-      }
-    });
 
-    if (goal.calculateProgress() >= 100) goal.status = 'completed';
-    if (goal.status === 'completed' && goal.calculateProgress() < 100 && req.body.status === undefined) goal.status = 'active';
-
-    await goal.save();
-    res.json({ success: true, goal: enrichGoal(goal) });
-  } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
-  }
-};
-
-const updateGoalProgress = async (req, res) => {
-  try {
-    const goal = await Goal.findById(req.params.id);
-    if (!goal) return res.status(404).json({ success: false, message: 'Goal not found' });
-    if (!canAccessGoal(req.user, goal)) return res.status(403).json({ success: false, message: 'Access denied' });
-
-    if (req.body.currentValue === undefined || isNaN(Number(req.body.currentValue))) {
-      return res.status(400).json({ success: false, message: 'Valid current value is required' });
+        Object.assign(goal, req.body);
+        await goal.save();
+        res.json({ success: true, goal });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
     }
-
-    goal.currentValue = Number(req.body.currentValue);
-    if (goal.calculateProgress() >= 100) goal.status = 'completed';
-    await goal.save();
-
-    const user = await User.findById(goal.client);
-    if (user) {
-      const progress = goal.calculateProgress();
-      if (progress >= 25 && !user.badges.includes('Strong Start')) user.badges.push('Strong Start');
-      if (progress >= 50 && !user.badges.includes('Halfway Hero')) user.badges.push('Halfway Hero');
-      if (progress >= 100 && !user.badges.includes('Goal Crusher')) user.badges.push('Goal Crusher');
-      user.xp = (user.xp || 0) + 10;
-      user.level = Math.floor(user.xp / 500) + 1;
-      await user.save();
-    }
-
-    res.json({ success: true, goal: enrichGoal(goal) });
-  } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
-  }
 };
 
 const deleteGoal = async (req, res) => {
-  try {
-    const goal = await Goal.findById(req.params.id);
-    if (!goal) return res.status(404).json({ success: false, message: 'Goal not found' });
-    if (!canAccessGoal(req.user, goal)) return res.status(403).json({ success: false, message: 'Access denied' });
+    try {
+        const goal = await Goal.findById(req.params.id);
+        if (!goal) return res.status(404).json({ success: false, message: 'Goal not found' });
 
-    await goal.deleteOne();
-    res.json({ success: true, message: 'Goal deleted successfully' });
-  } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
-  }
+        if (req.user.role === 'client' && goal.client.toString() !== req.user._id.toString()) {
+            return res.status(403).json({ success: false, message: 'Access denied' });
+        }
+
+        await goal.deleteOne();
+        res.json({ success: true, message: 'Goal deleted' });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
 };
 
-const getDashboard = async (req, res) => {
-  try {
-    const goals = await Goal.find(req.user.role === 'client' ? { client: req.user._id } : {}).sort({ createdAt: -1 });
-    const user = await User.findById(req.user._id).select('-password');
+// Add Progress Record + XP Gain + Stat Updates
+const addProgressRecord = async (req, res) => {
+    try {
+        const { date, workoutCompleted, mealsAdhered, weight, bodyFat, notes } = req.body;
 
-    res.json({
-      success: true,
-      user,
-      goals: goals.map(enrichGoal),
-      summary: {
-        totalGoals: goals.length,
-        activeGoals: goals.filter(g => g.status === 'active').length,
-        completedGoals: goals.filter(g => g.status === 'completed').length
-      }
-    });
-  } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
-  }
+        if (!date) {
+            return res.status(400).json({ success: false, message: 'Please provide a date for the progress record' });
+        }
+
+        const xpGained = (workoutCompleted ? 30 : 0) + Math.floor((mealsAdhered || 0) / 5);
+
+        const record = await ProgressRecord.create({
+            client: req.user._id,
+            goal: req.body.goalId,
+            date: new Date(date),
+            workoutCompleted: !!workoutCompleted,
+            mealsAdhered: mealsAdhered || 0,
+            weight,
+            bodyFat,
+            xpGained,
+            notes,
+        });
+
+        // Update User stats and XP
+        const user = await User.findById(req.user._id);
+
+        user.xp += xpGained;
+
+        // Level up logic
+        const newLevel = Math.floor(user.xp / 500) + 1;
+        if (newLevel > user.level) {
+            user.level = newLevel;
+            const titles = ["Rookie", "Novice", "Warrior", "Champion", "Elite", "Legend", "Mythic"];
+            user.title = titles[Math.min(Math.floor(newLevel / 5), titles.length - 1)];
+        }
+
+        // Update stats (simple growth logic)
+        if (workoutCompleted) {
+            user.stats.strength += 2;
+            user.stats.endurance += 1;
+            user.stats.explosivePower += 2;
+        }
+        if (mealsAdhered > 80) {
+            user.stats.coreStability += 1;
+        }
+
+        if (weight) {
+            user.currentWeight = weight;
+        }
+
+        // Recalculate overall score
+        user.stats.overallScore = Math.round(
+            (user.stats.strength + user.stats.endurance + user.stats.stamina +
+                user.stats.flexibility + user.stats.explosivePower + user.stats.coreStability) / 6
+        );
+        user.markModified('stats');
+        await user.save();
+
+        res.status(201).json({ success: true, record, user });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
 };
 
 module.exports = {
-  createGoal,
-  getGoals,
-  getGoalById,
-  updateGoal,
-  updateGoalProgress,
-  deleteGoal,
-  getDashboard
+    getDashboard,
+    createGoal,
+    getUserGoals,
+    updateGoal,
+    deleteGoal,
+    addProgressRecord
 };
