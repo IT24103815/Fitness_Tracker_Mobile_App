@@ -2,11 +2,13 @@ import React, { useState, useContext } from 'react';
 import { View, Text, TextInput, TouchableOpacity, ScrollView, Alert, StyleSheet } from 'react-native';
 import { AuthContext } from '../contexts/AuthContext';
 import axios from 'axios';
-import { API_URL } from '../config/api';
+
+import { API_URL } from '../config';
+import DateTimePicker from '@react-native-community/datetimepicker';
 
 const EditGoalScreen = ({ route, navigation }) => {
     const { goal } = route.params;
-    const { user, token } = useContext(AuthContext);
+    const { user } = useContext(AuthContext);
     
     const [form, setForm] = useState({
         title: goal.title,
@@ -21,6 +23,16 @@ const EditGoalScreen = ({ route, navigation }) => {
         deadline: goal.deadline ? new Date(goal.deadline).toISOString().split('T')[0] : ''
     });
     const [loading, setLoading] = useState(false);
+    const [showDatePicker, setShowDatePicker] = useState(false);
+    const [date, setDate] = useState(goal.deadline ? new Date(goal.deadline) : new Date());
+
+    const onDateChange = (event, selectedDate) => {
+        setShowDatePicker(false);
+        if (selectedDate) {
+            setDate(selectedDate);
+            setForm({ ...form, deadline: selectedDate.toISOString().split('T')[0] });
+        }
+    };
 
     const goalTypes = ['weight_loss', 'muscle_gain', 'strength', 'endurance', 'consistency', 'flexibility'];
     const priorities = ['low', 'medium', 'high'];
@@ -51,10 +63,7 @@ const EditGoalScreen = ({ route, navigation }) => {
         // Date Validation
         if (form.deadline) {
             const deadlineDate = new Date(form.deadline);
-            if (isNaN(deadlineDate.getTime())) {
-                Alert.alert('Invalid Date', 'Use YYYY-MM-DD format.');
-                return;
-            }
+            // Optional: add future date check if needed, but for edit it might be okay to keep past dates if they were set before
         }
 
         setLoading(true);
@@ -67,14 +76,7 @@ const EditGoalScreen = ({ route, navigation }) => {
                 currentValue: Number(form.currentValue)
             };
 
-            if (!token) {
-                navigation.navigate('Login');
-                return;
-            }
-
-            await axios.put(`${API_URL}/progress/goals/${goal._id}`, updatedData, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
+            await axios.put(`${API_URL}/progress/goals/${goal._id}`, updatedData);
             Alert.alert('Success', 'Goal updated successfully!');
             navigation.goBack();
         } catch (err) {
@@ -200,12 +202,24 @@ const EditGoalScreen = ({ route, navigation }) => {
             </View>
 
             <View style={styles.section}>
-                <Text style={styles.label}>Deadline (YYYY-MM-DD)</Text>
-                <TextInput
-                    style={styles.input}
-                    value={form.deadline}
-                    onChangeText={v => setForm({ ...form, deadline: v })}
-                />
+                <Text style={styles.label}>Deadline</Text>
+                <TouchableOpacity 
+                    style={styles.input} 
+                    onPress={() => setShowDatePicker(true)}
+                >
+                    <Text style={{ color: form.deadline ? '#FFFFFF' : '#64748B', fontSize: 16 }}>
+                        {form.deadline || "Select Deadline Date"}
+                    </Text>
+                </TouchableOpacity>
+
+                {showDatePicker && (
+                    <DateTimePicker
+                        value={date}
+                        mode="date"
+                        display="default"
+                        onChange={onDateChange}
+                    />
+                )}
             </View>
 
             <TouchableOpacity 

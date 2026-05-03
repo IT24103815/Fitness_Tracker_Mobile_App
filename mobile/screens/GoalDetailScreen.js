@@ -3,14 +3,16 @@ import { View, Text, TextInput, TouchableOpacity, ScrollView, StyleSheet, Alert 
 import { useFocusEffect } from '@react-navigation/native';
 import { AuthContext } from '../contexts/AuthContext';
 import axios from 'axios';
-import { API_URL } from '../config/api';
+
+import { API_URL } from '../config';
 
 const STATUS_COLORS = { active: '#3B82F6', completed: '#22C55E', paused: '#F59E0B', failed: '#EF4444' };
 
 const GoalDetailScreen = ({ route, navigation }) => {
     const { goal: initialGoal } = route.params;
-    const { user, token } = useContext(AuthContext);
+    const { user } = useContext(AuthContext);
     const [goal, setGoal] = useState(initialGoal);
+    const [activePlan, setActivePlan] = useState(null);
     const [newCurrentValue, setNewCurrentValue] = useState('');
     const [updating, setUpdating] = useState(false);
 
@@ -20,19 +22,13 @@ const GoalDetailScreen = ({ route, navigation }) => {
     useFocusEffect(
         useCallback(() => {
             fetchGoal();
+            fetchActiveWorkout();
         }, [])
     );
 
     const fetchGoal = async () => {
         try {
-            if (!token) {
-                navigation.navigate('Login');
-                return;
-            }
-
-            const res = await axios.get(`${API_URL}/progress/goals`, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
+            const res = await axios.get(`${API_URL}/progress/goals`);
             const updated = (res.data.goals || []).find(g => g._id === goal._id);
             if (updated) setGoal(updated);
         } catch (err) {
@@ -40,6 +36,18 @@ const GoalDetailScreen = ({ route, navigation }) => {
         }
     };
 
+    const fetchActiveWorkout = async () => {
+        try {
+            const res = await axios.get(`${API_URL}/workouts/my`);
+            // Find an active plan that matches the goal's focus if possible, otherwise just the first one
+            const plans = res.data.plans || [];
+            if (plans.length > 0) {
+                setActivePlan(plans[0]);
+            }
+        } catch (err) {
+            console.error('Error fetching workout plans:', err.message);
+        }
+    };
 
     const handleUpdateProgress = async () => {
         if (!newCurrentValue || isNaN(newCurrentValue)) {
@@ -48,16 +56,8 @@ const GoalDetailScreen = ({ route, navigation }) => {
         }
         setUpdating(true);
         try {
-            if (!token) {
-                navigation.navigate('Login');
-                setUpdating(false);
-                return;
-            }
-
             const res = await axios.put(`${API_URL}/progress/goals/${goal._id}`, {
                 currentValue: Number(newCurrentValue)
-            }, {
-                headers: { Authorization: `Bearer ${token}` }
             });
             if (res.data.success) {
                 setGoal(res.data.goal);
@@ -76,14 +76,7 @@ const GoalDetailScreen = ({ route, navigation }) => {
             { text: 'Cancel', style: 'cancel' },
             { text: 'Delete', style: 'destructive', onPress: async () => {
                 try {
-                    if (!token) {
-                        navigation.navigate('Login');
-                        return;
-                    }
-
-                    await axios.delete(`${API_URL}/progress/goals/${goal._id}`, {
-                        headers: { Authorization: `Bearer ${token}` }
-                    });
+                    await axios.delete(`${API_URL}/progress/goals/${goal._id}`);
                     navigation.goBack();
                 } catch (err) {
                     Alert.alert('Error', 'Failed to delete goal');
@@ -92,6 +85,8 @@ const GoalDetailScreen = ({ route, navigation }) => {
         ]);
     };
 
+    // Flatten workout days for the grid
+    const flattenedDays = activePlan ? activePlan.weeks.flatMap(w => w.days) : [];
 
     // Progress calculation
     const range = (goal.targetValue || 0) - (goal.startValue || 0);

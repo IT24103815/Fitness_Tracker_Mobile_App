@@ -3,27 +3,21 @@ import { View, Text, TouchableOpacity, FlatList, StyleSheet, Alert, RefreshContr
 import { useFocusEffect } from '@react-navigation/native';
 import { AuthContext } from '../contexts/AuthContext';
 import axios from 'axios';
-import { API_URL } from '../config/api';
+
+import { API_URL } from '../config';
 
 const STATUS_COLORS = { active: '#3B82F6', completed: '#22C55E', paused: '#F59E0B', failed: '#EF4444' };
 const PRIORITY_COLORS = { high: '#EF4444', medium: '#F59E0B', low: '#10B981' };
 const TYPE_ICONS = { weight_loss: '⚖️', muscle_gain: '💪', strength: '🏋️', endurance: '🫀', consistency: '📆', flexibility: '🤸' };
 
 const GoalListScreen = ({ navigation }) => {
-    const { user, token } = useContext(AuthContext);
+    const { user } = useContext(AuthContext);
     const [goals, setGoals] = useState([]);
     const [refreshing, setRefreshing] = useState(false);
 
     const fetchGoals = async () => {
         try {
-            if (!token) {
-                navigation.navigate('Login');
-                return;
-            }
-
-            const res = await axios.get(`${API_URL}/progress/goals`, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
+            const res = await axios.get(`${API_URL}/progress/goals`);
             setGoals(res.data.goals || []);
         } catch (err) {
             Alert.alert('Error', 'Failed to load goals');
@@ -41,16 +35,9 @@ const GoalListScreen = ({ navigation }) => {
     const handleDelete = (id) => {
         Alert.alert('Delete Goal', 'Are you sure you want to delete this goal?', [
             { text: 'Cancel', style: 'cancel' },
-                    { text: 'Delete', style: 'destructive', onPress: async () => {
+            { text: 'Delete', style: 'destructive', onPress: async () => {
                 try {
-                    if (!token) {
-                        navigation.navigate('Login');
-                        return;
-                    }
-
-                    await axios.delete(`${API_URL}/progress/goals/${id}`, {
-                        headers: { Authorization: `Bearer ${token}` }
-                    });
+                    await axios.delete(`${API_URL}/progress/goals/${id}`);
                     fetchGoals();
                 } catch {
                     Alert.alert('Error', 'Failed to delete goal');

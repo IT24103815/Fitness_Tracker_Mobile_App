@@ -2,10 +2,12 @@ import React, { useState, useContext } from 'react';
 import { View, Text, TextInput, TouchableOpacity, ScrollView, Alert, StyleSheet } from 'react-native';
 import { AuthContext } from '../contexts/AuthContext';
 import axios from 'axios';
-import { API_URL } from '../config/api';
+
+import { API_URL } from '../config';
+import DateTimePicker from '@react-native-community/datetimepicker';
 
 const CreateGoalScreen = ({ navigation }) => {
-    const { user, token } = useContext(AuthContext);
+    const { user } = useContext(AuthContext);
     const [form, setForm] = useState({
         title: '',
         type: 'weight_loss',
@@ -17,32 +19,53 @@ const CreateGoalScreen = ({ navigation }) => {
         deadline: ''
     });
     const [loading, setLoading] = useState(false);
+    const [showDatePicker, setShowDatePicker] = useState(false);
+    const [date, setDate] = useState(new Date());
+    const [errors, setErrors] = useState({});
 
     const goalTypes = ['weight_loss', 'muscle_gain', 'strength', 'endurance', 'consistency', 'flexibility'];
     const priorities = ['low', 'medium', 'high'];
 
+    const onDateChange = (event, selectedDate) => {
+        setShowDatePicker(false);
+        if (selectedDate) {
+            setDate(selectedDate);
+            setForm({ ...form, deadline: selectedDate.toISOString().split('T')[0] });
+        }
+    };
+
     const handleCreate = async () => {
-        // Validation
+        const newErrors = {};
         const titleTrimmed = form.title.trim();
-        if (!titleTrimmed || !form.targetValue || !form.targetUnit.trim()) {
-            Alert.alert('Incomplete Form', 'Title, Target Value, and Unit are mandatory.');
-            return;
+        if (!titleTrimmed) {
+            newErrors.title = 'Title is mandatory';
+        }
+        if (!form.targetValue) {
+            newErrors.targetValue = 'Target value is mandatory';
+        }
+        if (!form.targetUnit.trim()) {
+            newErrors.targetUnit = 'Unit is mandatory';
         }
 
         const start = Number(form.startValue) || 0;
         const target = Number(form.targetValue);
 
-        if (isNaN(target) || isNaN(start)) {
-            Alert.alert('Invalid Entry', 'Measurement values must be numeric.');
+        if (!newErrors.targetValue && isNaN(target)) {
+            newErrors.targetValue = 'Must be a number';
+        }
+
+        if (Object.keys(newErrors).length > 0) {
+            setErrors(newErrors);
+            Alert.alert('Form Error', 'Please check the mandatory fields.');
             return;
         }
+        setErrors({});
 
         if (target <= 0 && form.type !== 'weight_loss') {
             Alert.alert('Invalid Goal', 'Target value should typically be greater than zero.');
             return;
         }
 
-        // Logical Check: If target is equal to start, no progress can be made
         if (target === start && (form.type === 'weight_loss' || form.type === 'muscle_gain')) {
             Alert.alert('Logical Error', 'Target value should be different from your current starting value.');
             return;
@@ -51,10 +74,6 @@ const CreateGoalScreen = ({ navigation }) => {
         // Date Validation
         if (form.deadline) {
             const deadlineDate = new Date(form.deadline);
-            if (isNaN(deadlineDate.getTime())) {
-                Alert.alert('Invalid Date', 'Please use YYYY-MM-DD format.');
-                return;
-            }
             if (deadlineDate <= new Date()) {
                 Alert.alert('Past Deadline', 'The goal deadline must be a future date.');
                 return;
@@ -73,14 +92,7 @@ const CreateGoalScreen = ({ navigation }) => {
                 client: user._id // Self-created
             };
 
-            if (!token) {
-                navigation.navigate('Login');
-                return;
-            }
-
-            await axios.post(`${API_URL}/progress/goals`, goalData, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
+            await axios.post(`${API_URL}/progress/goals`, goalData);
             Alert.alert('Success', 'Goal created! Time to get to work.');
             navigation.goBack();
         } catch (err) {
@@ -99,12 +111,16 @@ const CreateGoalScreen = ({ navigation }) => {
             <View style={styles.section}>
                 <Text style={styles.label}>Goal Title</Text>
                 <TextInput
-                    style={styles.input}
+                    style={[styles.input, errors.title && styles.inputError]}
                     placeholder="e.g. Run 10km under 50 mins"
                     placeholderTextColor="#64748B"
                     value={form.title}
-                    onChangeText={v => setForm({ ...form, title: v })}
+                    onChangeText={v => {
+                        setForm({ ...form, title: v });
+                        if (errors.title) setErrors({ ...errors, title: null });
+                    }}
                 />
+                {errors.title && <Text style={styles.errorText}>{errors.title}</Text>}
             </View>
 
             <View style={styles.section}>
@@ -139,25 +155,33 @@ const CreateGoalScreen = ({ navigation }) => {
                 <View style={[styles.section, { flex: 1, marginLeft: 12 }]}>
                     <Text style={styles.label}>Target Value</Text>
                     <TextInput
-                        style={styles.input}
+                        style={[styles.input, errors.targetValue && styles.inputError]}
                         placeholder="Goal"
                         placeholderTextColor="#64748B"
                         keyboardType="numeric"
                         value={form.targetValue}
-                        onChangeText={v => setForm({ ...form, targetValue: v })}
+                        onChangeText={v => {
+                            setForm({ ...form, targetValue: v });
+                            if (errors.targetValue) setErrors({ ...errors, targetValue: null });
+                        }}
                     />
+                    {errors.targetValue && <Text style={styles.errorText}>{errors.targetValue}</Text>}
                 </View>
             </View>
 
             <View style={styles.section}>
                 <Text style={styles.label}>Unit of Measurement</Text>
                 <TextInput
-                    style={styles.input}
+                    style={[styles.input, errors.targetUnit && styles.inputError]}
                     placeholder="e.g. kg, lbs, km, % body fat"
                     placeholderTextColor="#64748B"
                     value={form.targetUnit}
-                    onChangeText={v => setForm({ ...form, targetUnit: v })}
+                    onChangeText={v => {
+                        setForm({ ...form, targetUnit: v });
+                        if (errors.targetUnit) setErrors({ ...errors, targetUnit: null });
+                    }}
                 />
+                {errors.targetUnit && <Text style={styles.errorText}>{errors.targetUnit}</Text>}
             </View>
 
             <View style={styles.section}>
@@ -191,13 +215,24 @@ const CreateGoalScreen = ({ navigation }) => {
 
             <View style={styles.section}>
                 <Text style={styles.label}>Target Deadline (Optional)</Text>
-                <TextInput
-                    style={styles.input}
-                    placeholder="YYYY-MM-DD"
-                    placeholderTextColor="#64748B"
-                    value={form.deadline}
-                    onChangeText={v => setForm({ ...form, deadline: v })}
-                />
+                <TouchableOpacity 
+                    style={styles.input} 
+                    onPress={() => setShowDatePicker(true)}
+                >
+                    <Text style={{ color: form.deadline ? '#FFFFFF' : '#64748B', fontSize: 17 }}>
+                        {form.deadline || "Select Deadline Date"}
+                    </Text>
+                </TouchableOpacity>
+
+                {showDatePicker && (
+                    <DateTimePicker
+                        value={date}
+                        mode="date"
+                        display="default"
+                        onChange={onDateChange}
+                        minimumDate={new Date()}
+                    />
+                )}
             </View>
 
             <TouchableOpacity 
@@ -227,6 +262,17 @@ const styles = StyleSheet.create({
         fontSize: 17,
         borderWidth: 1,
         borderColor: '#334155',
+    },
+    inputError: {
+        borderColor: '#EF4444',
+        borderWidth: 1.5
+    },
+    errorText: {
+        color: '#EF4444',
+        fontSize: 12,
+        marginTop: 4,
+        marginLeft: 4,
+        fontWeight: '500'
     },
     optionRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
     option: {
