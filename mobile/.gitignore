@@ -1,0 +1,32 @@
+# Dependencies
+node_modules/
+
+# Environment
+.env
+.env.local
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Runtime
+*.pid
+*.seed
+
+# Coverage
+coverage/
+
+# Backend
+backend/node_modules/
+backend/.env
+
+# Mobile / Expo
+mobile/node_modules/
+mobile/.expo/
+mobile/expo-env.d.ts
+mobile/.env
+
+# OS
+.DS_Store
+Thumbs.db
