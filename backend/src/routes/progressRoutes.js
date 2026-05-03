@@ -7,7 +7,7 @@ const {
   updateGoal,
   deleteGoal,
   getDashboard
-} = require('../controllers/goalController');
+} = require('../controllers/progressController');
 
 // Kept for mobile compatibility: /api/progress/goals
 router.get('/dashboard', protect, getDashboard);

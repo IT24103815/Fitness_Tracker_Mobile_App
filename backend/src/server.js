@@ -4,7 +4,6 @@ const cors = require('cors');
 const dotenv = require('dotenv');
 
 const authRoutes = require('./routes/authRoutes');
-const goalRoutes = require('./routes/goalRoutes');
 const progressRoutes = require('./routes/progressRoutes');
 
 dotenv.config();
@@ -36,7 +35,6 @@ mongoose.connect(process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/fittrack')
   .catch(err => console.error('❌ MongoDB Connection Error:', err.message));
 
 app.use('/api/auth', authRoutes);
-app.use('/api/goals', goalRoutes);
 app.use('/api/progress', progressRoutes);
 
 app.get('/', (req, res) => {
@@ -45,7 +43,7 @@ app.get('/', (req, res) => {
     message: 'FitTrack Goal Management Backend is Running',
     routes: {
       auth: '/api/auth',
-      goals: '/api/goals',
+      goals: '/api/progress/goals',
       progressDashboard: '/api/progress/dashboard'
     }
   });
