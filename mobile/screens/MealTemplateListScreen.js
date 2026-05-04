@@ -3,7 +3,7 @@ import { View, Text, TouchableOpacity, FlatList, StyleSheet, Alert } from 'react
 import { AuthContext } from '../contexts/AuthContext';
 import axios from 'axios';
 
-const API_URL = 'http://192.168.1.73:5000/api';   // ← YOUR IP
+const API_URL = 'http://localhost:5000/api';   // ← YOUR IP
 
 const MealTemplateListScreen = ({ navigation }) => {
     const { user } = useContext(AuthContext);

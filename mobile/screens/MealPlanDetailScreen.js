@@ -3,7 +3,7 @@ import { View, Text, TouchableOpacity, ScrollView, StyleSheet, Alert } from 'rea
 import { AuthContext } from '../contexts/AuthContext';
 import axios from 'axios';
 
-const API_URL = 'http://192.168.1.73:5000/api';
+const API_URL = 'http://localhost:5000/api';
 
 const MealPlanDetailScreen = ({ route, navigation }) => {
     const { plan } = route.params;
