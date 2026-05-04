@@ -885,5 +885,3 @@ This project is part of an academic assignment. All rights reserved.
 
 **Last Updated:** May 2026
 
-
-**Last Updated:** May 2, 2026
